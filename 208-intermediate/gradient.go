@@ -10,6 +10,54 @@ import (
 	"strings"
 )
 
+// Color contains data regarding the colors characters
+type Color struct {
+	colors  string
+	binSize float64
+}
+
+// Parse the line and create a new Color
+func NewColor(line string) *Color {
+	return &Color{colors: line}
+}
+
+type Gradient interface {
+	// Norm computes the norm of the gradient vector
+	norm() float64
+	// Color returns a color character depending on the given scalar value
+	color(c *Color, a, b float64) string
+}
+
+// Radial implementation of the gradient
+type RadialGradient struct {
+	x, y   float64
+	radius float64
+}
+
+// Parse the line and create a new RadialGradient
+func NewRadialGradient(line string) *RadialGradient {
+	parts := strings.Split(line, " ")
+	x, _ := strconv.ParseFloat(parts[1], 64)
+	y, _ := strconv.ParseFloat(parts[2], 64)
+	radius, _ := strconv.ParseFloat(parts[3], 64)
+	return &RadialGradient{x: x, y: y, radius: radius}
+}
+
+func (lg *RadialGradient) norm() float64 {
+	return lg.radius
+}
+
+func (lg *RadialGradient) color(c *Color, a, b float64) string {
+	r0, r1 := a-lg.x, b-lg.y
+	length := math.Sqrt(math.Pow(r0, 2) + math.Pow(r1, 2))
+	bin := int(length / c.binSize)
+	if bin < len(c.colors) {
+		return string(c.colors[bin])
+	}
+	return string(c.colors[len(c.colors)-1])
+}
+
+// Linear implementation of the gradient
 type LinearGradient struct {
 	// start
 	x0, y0 float64
@@ -27,7 +75,6 @@ func NewLinearGradient(line string) *LinearGradient {
 	return &LinearGradient{x0: x0, y0: y0, x1: x1, y1: y1}
 }
 
-// Norm computes the norm of the gradient vector
 func (lg *LinearGradient) norm() float64 {
 	return math.Sqrt(math.Pow(lg.x1-lg.x0, 2) + math.Pow(lg.y1-lg.y0, 2))
 }
@@ -37,27 +84,16 @@ func (lg *LinearGradient) dot(a, b float64) float64 {
 	return a*(lg.x1-lg.x0) + b*(lg.y1-lg.y0)
 }
 
-// Color contains data regarding the colors characters
-type Color struct {
-	colors  string
-	binSize float64
-}
-
-// Parse the line and create a new Color
-func NewColor(line string) *Color {
-	return &Color{colors: line}
-}
-
-// Color returns a color character depending on the given scalar value
-func (c *Color) color(y float64) string {
-	if y < 0 {
-		bin := len(c.colors) + int(y/c.binSize) - 1
+func (lg *LinearGradient) color(c *Color, a, b float64) string {
+	projection := lg.dot(a, b) / lg.norm()
+	if projection < 0 {
+		bin := len(c.colors) + int(projection/c.binSize) - 1
 		if bin < 0 {
 			return string(c.colors[0])
 		}
 		return string(c.colors[bin])
 	}
-	bin := int(y / c.binSize)
+	bin := int(projection / c.binSize)
 	if bin < len(c.colors) {
 		return string(c.colors[bin])
 	}
@@ -75,7 +111,7 @@ func main() {
 	// Get configuration
 	width, height := float64(0), float64(0)
 	var colors *Color
-	var gradient *LinearGradient
+	var gradient Gradient
 	for i := 0; scanner.Scan(); i++ {
 		line := scanner.Text()
 		switch i {
@@ -90,6 +126,8 @@ func main() {
 			switch {
 			case strings.HasPrefix(line, "linear"):
 				gradient = NewLinearGradient(scanner.Text())
+			case strings.HasPrefix(line, "radial"):
+				gradient = NewRadialGradient(scanner.Text())
 			default:
 				log.Fatalf("Unknown gradient: %s", line)
 			}
@@ -101,14 +139,14 @@ func main() {
 		log.Fatalf("Failed to parse config file", err)
 	}
 
+	// set up the length of a color bin
 	norm := gradient.norm()
 	colors.binSize = norm / float64(len(colors.colors))
 
 	// Display the gradient
 	for h := float64(0); h < height; h++ {
 		for w := float64(0); w < width; w++ {
-			projection := gradient.dot(w, h) / norm
-			fmt.Print(colors.color(projection))
+			fmt.Print(gradient.color(colors, w, h))
 		}
 		fmt.Println()
 	}
