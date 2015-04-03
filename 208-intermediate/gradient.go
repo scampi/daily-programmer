@@ -125,9 +125,9 @@ func main() {
 		case 2:
 			switch {
 			case strings.HasPrefix(line, "linear"):
-				gradient = NewLinearGradient(scanner.Text())
+				gradient = NewLinearGradient(line)
 			case strings.HasPrefix(line, "radial"):
-				gradient = NewRadialGradient(scanner.Text())
+				gradient = NewRadialGradient(line)
 			default:
 				log.Fatalf("Unknown gradient: %s", line)
 			}
