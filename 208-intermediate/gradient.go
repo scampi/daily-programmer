@@ -24,7 +24,7 @@ func NewColor(line string) *Color {
 type Gradient interface {
 	// Norm computes the norm of the gradient vector
 	norm() float64
-	// Color returns a color character depending on the given scalar value
+	// Color returns a color character depending on the given vector
 	color(c *Color, a, b float64) string
 }
 
