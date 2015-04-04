@@ -36,6 +36,7 @@ type Transitions map[Condition]Effect
 func addTransition(transitions Transitions, line string, alphabet []rune, states []string) Transitions {
 	parts := strings.Split(line, " ")
 
+	// the condition of the transition
 	cond := Condition{state: parts[0], symbol: []rune(parts[1])[0]}
 	if !stringInSlice(cond.state, states) {
 		log.Fatalf("Unknown state: [%s]", cond.state)
@@ -47,6 +48,7 @@ func addTransition(transitions Transitions, line string, alphabet []rune, states
 		log.Fatalf("Duplicate transition! Got [%s] condition already", cond)
 	}
 
+	// the effect of the transition
 	effect := Effect{state: parts[3], symbol: []rune(parts[4])[0], direction: parts[5]}
 	if !stringInSlice(effect.state, states) {
 		log.Fatalf("Unknown state: [%s]", effect.state)
@@ -104,20 +106,24 @@ func stringInSlice(a string, list []string) bool {
 	return false
 }
 
-func main() {
-	file, err := os.Open(os.Args[1])
+type TuringMachine struct {
+	startState  string
+	acceptState string
+	tape        []rune
+	transitions Transitions
+}
+
+func NewTuringMachine(fileName string) *TuringMachine {
+	file, err := os.Open(fileName)
 	if err != nil {
 		log.Fatalf("Failed to open file", err)
 	}
 	defer file.Close()
 	scanner := bufio.NewScanner(file)
 
+	tm := &TuringMachine{transitions: Transitions{}}
 	var alphabet []rune
 	var states []string
-	startState := ""
-	acceptState := ""
-	var tape []rune
-	transitions := Transitions{}
 	for i := 0; scanner.Scan(); i++ {
 		line := scanner.Text()
 		switch i {
@@ -126,46 +132,57 @@ func main() {
 		case 1:
 			states = strings.Split(line, " ")
 		case 2:
-			startState = line
-			if !stringInSlice(startState, states) {
-				log.Fatalf("Unknown state: [%s]", startState)
+			tm.startState = line
+			if !stringInSlice(tm.startState, states) {
+				log.Fatalf("Unknown state: [%s]", tm.startState)
 			}
 		case 3:
-			acceptState = line
-			if !stringInSlice(acceptState, states) {
-				log.Fatalf("Unknown state: [%s]", acceptState)
+			tm.acceptState = line
+			if !stringInSlice(tm.acceptState, states) {
+				log.Fatalf("Unknown state: [%s]", tm.acceptState)
 			}
 		case 4:
-			tape = []rune(line)
+			tm.tape = []rune(line)
 		default:
-			transitions = addTransition(transitions, line, alphabet, states)
+			tm.transitions = addTransition(tm.transitions, line, alphabet, states)
 		}
 	}
+	if scanner.Err() != nil {
+		log.Fatal(scanner.Err())
+	}
+	return tm
+}
 
-	printTape(startState, 0, string(tape), 0)
-	currentCondition, readHead, zero := Condition{state: startState, symbol: tape[0]}, 0, 0
+func main() {
+	turingMachine := NewTuringMachine(os.Args[1])
+
+	printTape(turingMachine.startState, 0, string(turingMachine.tape), 0)
+	currentCondition, readHead, zero := Condition{state: turingMachine.startState, symbol: turingMachine.tape[0]}, 0, 0
 	// Loops until the current state is the accepting state
-	for currentCondition.state != acceptState {
-		effect := transitions[currentCondition]
+	for currentCondition.state != turingMachine.acceptState {
+		effect := turingMachine.transitions[currentCondition]
+
 		// Apply the step
+
+		// 1. change current state
 		currentCondition.state = effect.state
+		// 2. move the readHead
 		if readHead < 0 {
-			tape = append([]rune{effect.symbol}, tape...)
+			turingMachine.tape = append([]rune{effect.symbol}, turingMachine.tape...)
 			zero++
-		} else if readHead >= len(tape) {
-			tape = append(tape, effect.symbol)
+		} else if readHead >= len(turingMachine.tape) {
+			turingMachine.tape = append(turingMachine.tape, effect.symbol)
 		} else {
-			tape[readHead] = effect.symbol
+			turingMachine.tape[readHead] = effect.symbol
 		}
 		readHead = move(effect, readHead)
-		if readHead >= len(tape) {
-			currentCondition.symbol = '_'
-		} else if readHead < 0 {
+		// 3. update the current symbol under the readHead
+		if readHead < 0 || readHead >= len(turingMachine.tape) {
 			currentCondition.symbol = '_'
 		} else {
-			currentCondition.symbol = tape[readHead]
+			currentCondition.symbol = turingMachine.tape[readHead]
 		}
 
-		printTape(currentCondition.state, readHead, string(tape), zero)
+		printTape(currentCondition.state, readHead, string(turingMachine.tape), zero)
 	}
 }
