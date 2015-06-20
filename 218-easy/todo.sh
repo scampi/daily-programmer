@@ -1,7 +1,7 @@
 #! /usr/bin/env bash
 
 ## https://www.reddit.com/r/dailyprogrammer/comments/39ws1x/20150615_challenge_218_easy_todo_list_part_1/
-## this creates a named pipe through which you send actions
+## this creates a named pipe through which you send actions by writing to "todo.fifo", e.g., cat > todo.fifo
 ## - add xxx: add xxx to the todo list
 ## - delete X: deletes the item number X in the list
 ## - view: prints the todo list
